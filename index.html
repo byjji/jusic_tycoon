@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>주식 타이쿤 🎢</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🎢</text></svg>"/>
+<link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="css/style.css"/>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="speedlines"></div>
+<div id="vignette"></div>
+<div id="flash"></div>
+
+<div id="hud" class="hidden">
+  <div class="gauge">
+    <div class="g-label">현재가</div>
+    <div class="g-value" id="hud-price">-</div>
+    <div class="g-sub" id="hud-pct">-</div>
+  </div>
+  <div class="gauge center">
+    <div class="g-label">속도</div>
+    <div class="g-value big"><span id="hud-speed">0</span><small> km/h</small></div>
+    <div class="progress"><div id="hud-progress"></div></div>
+  </div>
+  <div class="gauge">
+    <div class="g-label" id="hud-name">-</div>
+    <div class="g-value small" id="hud-date">-</div>
+    <div class="g-sub" id="hud-period">-</div>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="panel">
+    <h1>🎢 주식 타이쿤 📈</h1>
+    <p class="tagline">차트가 곧 레일이다! 주가의 흐름을 1인칭 롤러코스터로 체험하세요.</p>
+
+    <label class="field-label">종목 검색</label>
+    <div class="searchwrap">
+      <input id="search" type="text" placeholder="종목명 또는 코드 입력 (예: 삼성전자)" autocomplete="off"/>
+      <ul id="suggest" class="hidden"></ul>
+    </div>
+    <div id="chips"></div>
+
+    <label class="field-label">차트 기간</label>
+    <div id="periods"></div>
+
+    <canvas id="preview" width="520" height="120"></canvas>
+    <div class="note">※ 저장된 차트 데이터 기반 (정적 호스팅 환경 — 실시간 시세 아님)</div>
+
+    <button id="start">🚀 탑승하기</button>
+  </div>
+</div>
+
+<div id="result" class="hidden">
+  <div class="panel">
+    <div id="res-emoji">🚀</div>
+    <h2 id="res-title"></h2>
+    <p id="res-desc"></p>
+    <div id="res-stats"></div>
+    <div class="btnrow">
+      <button id="retry">🔁 다시 타기</button>
+      <button id="back">📋 종목 선택</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
