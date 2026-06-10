@@ -142,11 +142,29 @@ export class UI {
 
   setSpeed(kmh) { this.$('hud-speed').textContent = kmh; }
 
-  // 급락: 빨간 비네트 + 스피드라인
+  // 급락: 빨간 비네트 + 스피드라인 + 계기판 경고
   setDanger(on) {
     this._danger = on;
     this.$('vignette').classList.toggle('on', on);
+    this.$('hud').classList.toggle('danger', on);
     this._applyRush();
+  }
+
+  // 내리막/급락 몰입감: 화면 주변부 블러 (중앙은 선명하게 유지)
+  setBlur(i) {
+    const q = Math.round(i * 20) / 20; // 스타일 변경 횟수 절감용 양자화
+    if (q === this._blurQ) return;
+    this._blurQ = q;
+    const el = this.$('blur');
+    if (q < 0.08) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const px = (q * 8).toFixed(1);
+    el.style.backdropFilter = `blur(${px}px)`;
+    el.style.webkitBackdropFilter = `blur(${px}px)`;
+    const inner = Math.round(40 - q * 22);
+    const mask = `radial-gradient(circle at center, transparent ${inner}%, black ${inner + 32}%)`;
+    el.style.webkitMaskImage = mask;
+    el.style.maskImage = mask;
   }
 
   // 급등: 스피드라인

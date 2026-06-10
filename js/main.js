@@ -90,7 +90,7 @@ function rebuild() {
     ticker, period, series, ending, track,
     zones: computeZones(series.prices),
     mode: 'track', s: 0, v: V_LIFT, maxV: 0,
-    lastZone: 0, fwT: 0, bank: 0, braking: false, launched: false,
+    lastZone: 0, fwT: 0, bank: 0, blur: 0, braking: false, launched: false,
     screamCd: 0, spaceT: 0, crashT: 0,
     vel: new THREE.Vector3(), pos: new THREE.Vector3(),
   };
@@ -102,8 +102,8 @@ function resetDynamics() {
   ride.s = 0; ride.v = V_LIFT; ride.maxV = 0;
   ride.lastZone = 0; ride.fwT = 0; ride.bank = 0;
   ride.braking = false; ride.launched = false; ride.screamCd = 0;
-  ride.spaceT = 0; ride.crashT = 0;
-  ui.setDanger(false); ui.setRush(false);
+  ride.spaceT = 0; ride.crashT = 0; ride.blur = 0;
+  ui.setDanger(false); ui.setRush(false); ui.setBlur(0);
 }
 
 function restoreSky() {
@@ -141,18 +141,19 @@ const ui = new UI({
 function handleZone(zone) {
   const r = ride;
   if (zone === r.lastZone) return;
-  if (zone === -1) {            // 급락 진입: 사이렌 + 비명 + 빨간 비네트
+  if (zone === -1) {            // 급락 진입: 사이렌 + 비명 + 빨간 플래시/비네트
     audio.siren(true);
     audio.scream();
     ui.setDanger(true);
+    ui.flash('rgba(255,40,20,0.55)');
   } else if (r.lastZone === -1) {
     audio.siren(false);
     ui.setDanger(false);
   }
-  if (zone === 1) {             // 급등(불장) 진입: 폭죽!
+  if (zone === 1) {             // 급등(불장) 진입: 연발 폭죽!
     ui.setRush(true);
-    spawnSurgeFirework();
-    spawnSurgeFirework();
+    spawnSurgeVolley(5);
+    audio.firework();
     audio.firework();
   } else if (r.lastZone === 1) {
     ui.setRush(false);
@@ -160,14 +161,12 @@ function handleZone(zone) {
   r.lastZone = zone;
 }
 
-function spawnSurgeFirework() {
+function spawnSurgeVolley(n) {
   const { curve, len } = ride.track;
-  const u = Math.min(ride.s / len + 50 / len, 1);
+  const u = Math.min(ride.s / len + 35 / len, 1);
   const c = curve.getPointAt(u);
-  c.x += (Math.random() - 0.5) * 30;
-  c.y += 12 + Math.random() * 18;
-  c.z += (Math.random() - 0.5) * 40;
-  effects.firework(c);
+  c.y += 14;
+  effects.volley(c, n, 30);
 }
 
 function placeCamera(u, dt, zone) {
@@ -187,7 +186,7 @@ function placeCamera(u, dt, zone) {
   r.bank += (bankTarget - r.bank) * Math.min(1, dt * 3.5);
 
   // 속도/급락에 따른 흔들림
-  const amp = Math.pow(r.v / V_MAX, 2) * 0.16 + (zone === -1 ? 0.12 : 0);
+  const amp = Math.pow(r.v / V_MAX, 2) * 0.16 + (zone === -1 ? 0.3 : 0);
   const head = p.clone().addScaledVector(upv, 2.3);
   head.x += (Math.random() - 0.5) * amp;
   head.y += (Math.random() - 0.5) * amp;
@@ -205,7 +204,7 @@ function placeCamera(u, dt, zone) {
   camera.lookAt(look);
 
   // 속도감: FOV 확장
-  const tFov = 72 + (r.v / V_MAX) * 16 + (zone === -1 ? 6 : 0);
+  const tFov = 72 + (r.v / V_MAX) * 16 + (zone === -1 ? 10 : 0);
   camera.fov += (tFov - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
 }
@@ -231,7 +230,7 @@ function updateTrackRide(dt) {
 
   // 물리: 중력 가속(내리막 가속, 오르막 감속) + 저항, 급변 구간 부스트
   let a = -G * slope - DRAG * r.v * r.v - ROLL;
-  if (zone === -1) a += 9;
+  if (zone === -1) a += 12;
   if (zone === 1) a += 5;
 
   const climbing = slope > 0.03 && r.v <= V_LIFT + 0.3 && !r.braking && !r.launched;
@@ -269,11 +268,18 @@ function updateTrackRide(dt) {
   if (zone === 1) {
     r.fwT -= dt;
     if (r.fwT <= 0) {
-      r.fwT = 0.5;
-      spawnSurgeFirework();
+      r.fwT = 0.4;
+      spawnSurgeVolley(2);
       audio.firework();
     }
   }
+
+  // 내리막 몰입감: 속도·경사에 따라 화면 주변부 블러
+  const downhill = Math.max(0, -slope - 0.04);
+  let tBlur = Math.min(1, downhill * 2.2) * Math.min(1, r.v / (V_MAX * 0.6));
+  if (zone === -1) tBlur = Math.max(tBlur, 0.55);
+  r.blur += (tBlur - r.blur) * Math.min(1, dt * 5);
+  ui.setBlur(r.blur);
 
   ui.setHUD({
     price: fmtPrice(r.ticker, price),
@@ -333,6 +339,7 @@ function updateSpace(dt) {
     audio.firework();
   }
   ui.setSpeed(Math.round(r.vel.length() * 3.6));
+  ui.setBlur(0.4);
   if (r.spaceT > 6.5) finishRide('space');
 }
 
@@ -352,6 +359,7 @@ function updateFall(dt) {
   camera.up.set(0, 1, 0);
   camera.lookAt(_v2.copy(r.pos).add(r.vel));
   ui.setSpeed(Math.round(r.vel.length() * 3.6));
+  ui.setBlur(0.6);
 
   if (r.pos.y <= 1.3) {
     r.mode = 'crashed';
@@ -364,6 +372,7 @@ function updateFall(dt) {
     audio.siren(false);
     audio.setMotion(0, false);
     ui.setDanger(false);
+    ui.setBlur(0);
     // 충돌 지점을 바라보는 외부 시점으로 전환해 잔해 연출
     camera.position.set(impact.x - 16, 7, impact.z + 18);
     camera.lookAt(impact);
@@ -392,6 +401,7 @@ function finishRide(type) {
   audio.quiet();
   ui.setDanger(false);
   ui.setRush(false);
+  ui.setBlur(0);
   ui.hideHUD();
   const r = ride;
   const prices = r.series.prices;
@@ -445,6 +455,9 @@ function animate() {
 
   renderer.render(scene, camera);
 }
+
+// 브라우저 자동재생 정책 대비: 화면을 누를 때마다 오디오 컨텍스트 재개 시도
+window.addEventListener('pointerdown', () => { if (audio.ctx) audio.ctx.resume(); }, { passive: true });
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;

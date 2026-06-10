@@ -5,6 +5,7 @@ export class Effects {
   constructor(scene) {
     this.scene = scene;
     this.items = [];
+    this.pending = []; // 지연 발사 대기열 (연발 폭죽)
     this.stars = this._makeStars();
     this.stars.visible = false;
     scene.add(this.stars);
@@ -34,24 +35,44 @@ export class Effects {
   }
 
   firework(center) {
-    const n = 120;
-    const arr = new Float32Array(n * 3);
+    this._burst(center);
+  }
+
+  // 여러 발을 시간차를 두고 주변에 흩뿌리는 연발 폭죽
+  volley(center, n = 4, spread = 28) {
+    for (let i = 0; i < n; i++) {
+      const c = center.clone();
+      c.x += (Math.random() - 0.5) * spread * 2;
+      c.y += (Math.random() - 0.2) * spread;
+      c.z += (Math.random() - 0.5) * spread * 2;
+      this.pending.push({ t: i * 0.13, center: c });
+    }
+  }
+
+  _burst(center) {
+    const n = 240;
+    const pos = new Float32Array(n * 3);
+    const col = new Float32Array(n * 3);
     const vel = [];
     const v = new THREE.Vector3();
+    const base = new THREE.Color().setHSL(Math.random(), 1, 0.55);
+    const spark = new THREE.Color(1, 1, 0.88);
     for (let i = 0; i < n; i++) {
-      arr[i * 3] = center.x; arr[i * 3 + 1] = center.y; arr[i * 3 + 2] = center.z;
-      vel.push(v.randomDirection().multiplyScalar(6 + Math.random() * 16).clone());
+      pos[i * 3] = center.x; pos[i * 3 + 1] = center.y; pos[i * 3 + 2] = center.z;
+      const c = Math.random() < 0.25 ? spark : base;
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+      vel.push(v.randomDirection().multiplyScalar(7 + Math.random() * 19).clone());
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const mat = new THREE.PointsMaterial({
-      color: new THREE.Color().setHSL(Math.random(), 0.95, 0.62),
-      size: 1.8, transparent: true, opacity: 1,
+      size: 2.6, vertexColors: true, transparent: true, opacity: 1,
       blending: THREE.AdditiveBlending, depthWrite: false,
     });
     const pts = new THREE.Points(geo, mat);
     this.scene.add(pts);
-    this.items.push({ kind: 'fw', obj: pts, vel, age: 0, life: 1.4 + Math.random() * 0.5 });
+    this.items.push({ kind: 'fw', obj: pts, vel, age: 0, life: 1.6 + Math.random() * 0.6 });
   }
 
   debris(center) {
@@ -77,6 +98,14 @@ export class Effects {
   }
 
   update(dt) {
+    for (let i = this.pending.length - 1; i >= 0; i--) {
+      this.pending[i].t -= dt;
+      if (this.pending[i].t <= 0) {
+        this._burst(this.pending[i].center);
+        this.pending.splice(i, 1);
+      }
+    }
+
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
       it.age += dt;
@@ -85,7 +114,7 @@ export class Effects {
         const attr = it.obj.geometry.attributes.position;
         for (let j = 0; j < it.vel.length; j++) {
           const vj = it.vel[j];
-          vj.y -= 7 * dt;
+          vj.y -= 8 * dt;
           attr.setXYZ(j, attr.getX(j) + vj.x * dt, attr.getY(j) + vj.y * dt, attr.getZ(j) + vj.z * dt);
         }
         attr.needsUpdate = true;
@@ -106,8 +135,7 @@ export class Effects {
       }
       if (it.age >= it.life) {
         this.scene.remove(it.obj);
-        it.obj.traverse?.(o => { o.geometry?.dispose(); o.material?.dispose(); });
-        if (it.kind === 'fw') { it.obj.geometry.dispose(); it.obj.material.dispose(); }
+        it.obj.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
         this.items.splice(i, 1);
       }
     }
