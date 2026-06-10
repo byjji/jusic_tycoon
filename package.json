@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "description": "주식 차트를 3D 롤러코스터로 체험하는 웹 앱",
   "type": "module",
-  "private": true
+  "private": true,
+  "scripts": {
+    "fetch-data": "node tools/fetch-data.mjs"
+  }
 }
